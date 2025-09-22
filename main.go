@@ -12,9 +12,9 @@ import (
 
 import _ "github.com/lib/pq"
 
-func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
-	return func(s *state, cmd command) error {
-		user, err := s.db.GetUser(context.Background(), s.conf.CurrentUserName)
+func middlewareLoggedIn(handler func(s *config.State, cmd command, user database.User) error) func(*config.State, command) error {
+	return func(s *config.State, cmd command) error {
+		user, err := s.Db.GetUser(context.Background(), s.Conf.CurrentUserName)
 		if err != nil {
 			return fmt.Errorf("user with given name doesn't exist in the database\n")
 		}
@@ -36,8 +36,8 @@ func main() {
 		log.Fatalf("\nUsage: cli <command> [args...]")
 	}
 
-	s := state{dbQueries, &conf}
-	cmds := commands{make(map[string]func(s *state, cmd command) error)}
+	s := config.State{dbQueries, &conf}
+	cmds := commands{make(map[string]func(s *config.State, cmd command) error)}
 	cmds.register("register", cmdRegister)
 	cmds.register("login", cmdLogin)
 	cmds.register("users", cmdUsers)

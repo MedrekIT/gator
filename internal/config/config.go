@@ -4,9 +4,15 @@ import (
 	"fmt"
 	"os"
 	"encoding/json"
+	"github.com/MedrekIT/gator/internal/database"
 )
 
 const configFile = ".gatorconfig.json"
+
+type State struct {
+	Db *database.Queries
+	Conf *Config
+}
 
 type Config struct {
 	DbURL string `json:"db_url"`
