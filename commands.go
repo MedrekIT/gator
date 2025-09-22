@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"context"
 	"time"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"encoding/xml"
 	"html"
+	"database/sql"
 	"github.com/google/uuid"
 	"github.com/MedrekIT/gator/internal/config"
 	"github.com/MedrekIT/gator/internal/database"
@@ -214,6 +216,44 @@ func cmdUnfollow(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func scrapeFeeds(s *state) error {
+	feed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return fmt.Errorf("you have no new feeds to fetch\n")
+	}
+	fmt.Printf("test1")
+
+	newMarkFeedParams := database.MarkFeedFetchedParams{feed.ID, time.Now()}
+	_, err = s.db.MarkFeedFetched(context.Background(), newMarkFeedParams)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("test2")
+
+	fetchedFeed, err := fetchFeed(context.Background(), feed.Url)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("test3")
+
+	for _, it := range fetchedFeed.Channel.Item {
+		publishedAt := sql.NullTime{}
+		if t, err := time.Parse(time.RFC1123Z, it.PubDate); err == nil {
+			publishedAt = sql.NullTime{
+				Time:  t,
+				Valid: true,
+			}
+		}
+
+		newPostParams := database.CreatePostParams{uuid.New(), time.Now(), time.Now(), it.Title, it.Link, sql.NullString{it.Description, true}, publishedAt, feed.ID}
+		_, err = s.db.CreatePost(context.Background(), newPostParams)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+	return nil
+}
+
 func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
 	if err != nil {
@@ -255,19 +295,49 @@ func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
 }
 
 func cmdAgg(s *state, cmd command) error {
-	feed, err := fetchFeed(context.Background(), "https://www.wagslane.dev/index.xml")
-	if err != nil {
-		return err
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("Incorrect usage\nTry 'agg <time_between_reqs [1s, 1m, 2h, 3m45s, ...]>'\n")
 	}
 
-	fmt.Println(feed.Channel.Title)
-	fmt.Println(feed.Channel.Link)
-	fmt.Println(feed.Channel.Description)
-	for _, it := range feed.Channel.Item {
-		fmt.Println(it.Title)
-		fmt.Println(it.Link)
-		fmt.Println(it.Description)
-		fmt.Println(it.PubDate)
+	duration, err := time.ParseDuration(cmd.args[0])
+	if err != nil {
+		return fmt.Errorf("incorrect time format\n")
+	}
+
+	fmt.Printf("Collecting feeds every %s\n", cmd.args[0])
+	ticker := time.NewTicker(duration)
+	for ;; <-ticker.C {
+		scrapeFeeds(s)
+	}
+	return nil
+}
+
+func cmdBrowse(s *state, cmd command, user database.User) error {
+	if len(cmd.args) > 1 {
+		return fmt.Errorf("Incorrect usage\nTry 'browse <limit [default = 2]>'\n")
+	}
+
+
+	newGetPostsParams := database.GetPostsForUserParams{}
+	if len(cmd.args) == 0 {
+		newGetPostsParams = database.GetPostsForUserParams{user.ID, 2}
+	} else {
+		postsLimit, err := strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return fmt.Errorf("invalid limit format\n")
+		}
+		newGetPostsParams = database.GetPostsForUserParams{user.ID, int32(postsLimit)}
+	}
+
+	posts, err := s.db.GetPostsForUser(context.Background(), newGetPostsParams)
+	if err != nil {
+		return fmt.Errorf("error while fetching posts from the database - %w\n", err)
+	}
+
+	for _, post := range posts {
+		fmt.Printf("%s:\n", post.Title)
+		fmt.Printf(" * %s\n", post.Description.String)
+		fmt.Printf(" * %s\n\n", post.Url)
 	}
 	return nil
 }
