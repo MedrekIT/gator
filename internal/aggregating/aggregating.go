@@ -34,10 +34,11 @@ type RSSItem struct {
 func ScrapeFeeds(s *config.State) error {
 	feed, err := s.Db.GetNextFeedToFetch(context.Background())
 	if err != nil {
+		if strings.Contains(err.Error(), "sql: no rows in result set") {
+			return fmt.Errorf("nothing to browse, database is empty!\n")
+		}
 		return fmt.Errorf("error while getting feeds to fetch from the database - %w\n", err)
 	}
-
-	fmt.Printf("Fetching from \"%s\"\n", feed.Name)
 
 	newMarkFeedParams := database.MarkFeedFetchedParams{
 		ID: feed.ID,

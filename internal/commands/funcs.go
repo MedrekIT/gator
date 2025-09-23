@@ -1,4 +1,4 @@
-package main
+package commands
 
 import (
 	"strings"
@@ -13,96 +13,25 @@ import (
 	"github.com/MedrekIT/gator/internal/database"
 )
 
-func getCommands() map[string]commands {
-	return map[string]commands{
-		"help": {
-			name: "help",
-			callback: cmdHelp,
-			description: "Displays this help message",
-		}, "register": {
-			name: "register <user_name>",
-			callback: cmdRegister,
-			description: "Allows to register new user account",
-		}, "login": {
-			name: "login <user_name>",
-			callback: cmdLogin,
-			description: "Allows registered user to login onto existant account",
-		}, "users": {
-			name: "users",
-			callback: cmdUsers,
-			description: "Displays all registered users",
-		}, "addfeed": {
-			name: "addfeed <feed_name> <feed_url>",
-			callback: middlewareLoggedIn(cmdAddFeed),
-			description: "Allows to save and follow a new RSS feed",
-		}, "feeds": {
-			name: "feeds",
-			callback: cmdFeeds,
-			description: "Displays all feeds saved by users",
-		}, "follow": {
-			name: "follow <feed_url>",
-			callback: middlewareLoggedIn(cmdFollow),
-			description: "Allows to follow any saved feed",
-		}, "unfollow": {
-			name: "unfollow <feed_url>",
-			callback: middlewareLoggedIn(cmdUnfollow),
-			description: "Allows to unfollow any followed feed",
-		}, "following": {
-			name: "following",
-			callback: middlewareLoggedIn(cmdFollowing),
-			description: "Displays every feed that you follow",
-		}, "agg": {
-			name: "agg <time_between_reqs [1s, 1m, 2h, 3m45s, ...]>",
-			callback: cmdAgg,
-			description: "Starts the automatic feeds aggregation and fetches new posts whenever given time passes",
-		}, "browse": {
-			name: "browse <limit [default = 2]>",
-			callback: middlewareLoggedIn(cmdBrowse),
-			description: "Displays number of freshly fetched posts limited by given value",
-		}, "reset": {
-			name: "reset",
-			callback: cmdReset,
-			description: "Resets all saved data",
-		},
-	}
-}
-
-type commands struct {
-	name string
-	callback func(*config.State, command) error
-	description string
-}
-
-type command struct {
-	name string
-	args []string
-}
-
-func (c commands) run(s *config.State, cmd command) error {
-	err := c.callback(s, cmd)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func cmdHelp(s *config.State, cmd command) error {
+func cmdHelp(s *config.State, cmd Command) error {
 	fmt.Printf("Welcome to the Gator - your command line RSS feed aggregator!\n\nUsage:\n")
-	for _, cmnd := range getCommands() {
+	for _, cmnd := range GetCommands() {
 		fmt.Printf("'%s' - %s\n", cmnd.name, cmnd.description)
 	}
 	return nil
 }
 
-func cmdLogin(s *config.State, cmd command) error {
-	if len(cmd.args) != 1 {
+func cmdLogin(s *config.State, cmd Command) error {
+	if len(cmd.Args) != 1 {
 		return fmt.Errorf("Incorrect usage\nTry 'login <user_name>'\n")
 	}
 
-	user, err := s.Db.GetUser(context.Background(), cmd.args[0])
+	user, err := s.Db.GetUser(context.Background(), cmd.Args[0])
 	if err != nil {
-		return fmt.Errorf("user with given name does not exist in the database\n")
+		if strings.Contains(err.Error(), "sql: no rows in result set") {
+			return fmt.Errorf("user with given name does not exist in the database\n")
+		}
+		return fmt.Errorf("error while getting user from the database - %w\n", err)
 	}
 
 	err = s.Conf.SetUser(user.Name)
@@ -114,8 +43,8 @@ func cmdLogin(s *config.State, cmd command) error {
 	return nil
 }
 
-func cmdRegister(s *config.State, cmd command) error {
-	if len(cmd.args) != 1 {
+func cmdRegister(s *config.State, cmd Command) error {
+	if len(cmd.Args) != 1 {
 		return fmt.Errorf("Incorrect usage\nTry 'register <user_name>'\n")
 	}
 
@@ -123,11 +52,11 @@ func cmdRegister(s *config.State, cmd command) error {
 		ID: uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Name: cmd.args[0],
+		Name: cmd.Args[0],
 	}
 	user, err := s.Db.CreateUser(context.Background(), newUserParams)
 	if err != nil {
-		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"users_id\"") {
+		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"users_name_key\"") {
 			return fmt.Errorf("user with given name already exists in the database\n")
 		}
 		return fmt.Errorf("error while creating new user - %w\n", err)
@@ -142,7 +71,7 @@ func cmdRegister(s *config.State, cmd command) error {
 	return nil
 }
 
-func cmdUsers(s *config.State, cmd command) error {
+func cmdUsers(s *config.State, cmd Command) error {
 	users, err := s.Db.GetUsers(context.Background())
 	if err != nil {
 		return fmt.Errorf("error while getting users from the database\n")
@@ -161,8 +90,8 @@ func cmdUsers(s *config.State, cmd command) error {
 	return nil
 }
 
-func cmdAddFeed(s *config.State, cmd command, user database.User) error {
-	if len(cmd.args) != 2 {
+func cmdAddFeed(s *config.State, cmd Command, user database.User) error {
+	if len(cmd.Args) != 2 {
 		return fmt.Errorf("Incorrect usage\nTry 'addfeed <feed_name> <feed_url>'\n")
 	}
 
@@ -170,13 +99,16 @@ func cmdAddFeed(s *config.State, cmd command, user database.User) error {
 		ID: uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		Name: cmd.args[0],
-		Url: cmd.args[1],
+		Name: cmd.Args[0],
+		Url: cmd.Args[1],
 		UserID: user.ID,
 	}
 	feed, err := s.Db.CreateFeed(context.Background(), newFeedParams)
 	if err != nil {
-		return fmt.Errorf("feed with given URL already exists in the database\n")
+		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"feeds_url_key\"") {
+			return fmt.Errorf("feed with given URL already exists in the database\n")
+		}
+		return fmt.Errorf("error while creating new feed - %w\n", err)
 	}
 
 	newFeedFollowParams := database.CreateFeedFollowParams{
@@ -198,7 +130,7 @@ func cmdAddFeed(s *config.State, cmd command, user database.User) error {
 	return nil
 }
 
-func cmdFeeds(s *config.State, cmd command) error {
+func cmdFeeds(s *config.State, cmd Command) error {
 	feeds, err := s.Db.GetFeeds(context.Background())
 	if err != nil {
 		return fmt.Errorf("error while getting feeds from the database - %w\n", err)
@@ -210,7 +142,10 @@ func cmdFeeds(s *config.State, cmd command) error {
 	for _, feed := range feeds {
 		user, err := s.Db.GetUserByID(context.Background(), feed.UserID)
 		if err != nil {
-			return fmt.Errorf("user with given ID does not exist in the database - %w\n", err)
+			if strings.Contains(err.Error(), "sql: no rows in result set") {
+				return fmt.Errorf("user with given ID does not exist in the database\n")
+			}
+			return fmt.Errorf("error while getting user from the database - %w\n", err)
 		}
 
 		fmt.Printf("\"%s\":\n", feed.Name)
@@ -220,14 +155,17 @@ func cmdFeeds(s *config.State, cmd command) error {
 	return nil
 }
 
-func cmdFollow(s *config.State, cmd command, user database.User) error {
-	if len(cmd.args) != 1 {
+func cmdFollow(s *config.State, cmd Command, user database.User) error {
+	if len(cmd.Args) != 1 {
 		return fmt.Errorf("Incorrect usage\nTry 'follow <feed_url>'\n")
 	}
 
-	feed, err := s.Db.GetFeedByURL(context.Background(), cmd.args[0])
+	feed, err := s.Db.GetFeedByURL(context.Background(), cmd.Args[0])
 	if err != nil {
-		return fmt.Errorf("feed with given URL does not exist in the database - %w\n", err)
+		if strings.Contains(err.Error(), "sql: no rows in result set") {
+			return fmt.Errorf("feed with given URL does not exist in the database\n")
+		}
+		return fmt.Errorf("error while getting feed from the database - %w\n", err)
 	}
 
 	newFeedFollowParams := database.CreateFeedFollowParams{
@@ -239,14 +177,17 @@ func cmdFollow(s *config.State, cmd command, user database.User) error {
 	}
 	feedFollow, err := s.Db.CreateFeedFollow(context.Background(), newFeedFollowParams)
 	if err != nil {
-		return fmt.Errorf("you already follow feed with given URL - %w\n", err)
+		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"feed_follows_user_id_feed_id_key\"") {
+			return fmt.Errorf("you already follow feed with given URL\n")
+		}
+		return fmt.Errorf("error while adding follow to the feed in the database - %w\n", err)
 	}
 
 	fmt.Printf("user \"%s\" now follows feed \"%s\"\n", feedFollow.UserName, feedFollow.FeedName)
 	return nil
 }
 
-func cmdFollowing(s *config.State, cmd command, user database.User) error {
+func cmdFollowing(s *config.State, cmd Command, user database.User) error {
 	userFollows, err := s.Db.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return fmt.Errorf("error while fetching follows data from the database - %w\n", err)
@@ -262,14 +203,17 @@ func cmdFollowing(s *config.State, cmd command, user database.User) error {
 	return nil
 }
 
-func cmdUnfollow(s *config.State, cmd command, user database.User) error {
-	if len(cmd.args) != 1 {
+func cmdUnfollow(s *config.State, cmd Command, user database.User) error {
+	if len(cmd.Args) != 1 {
 		return fmt.Errorf("Incorrect usage\nTry 'unfollow <feed_url>'\n")
 	}
 
-	feed, err := s.Db.GetFeedByURL(context.Background(), cmd.args[0])
+	feed, err := s.Db.GetFeedByURL(context.Background(), cmd.Args[0])
 	if err != nil {
-		return fmt.Errorf("given feed does not exist in the database - %w\n", err)
+		if strings.Contains(err.Error(), "sql: no rows in result set") {
+			return fmt.Errorf("given feed does not exist in the database\n")
+		}
+		return fmt.Errorf("error while getting feed from the database - %w\n", err)
 	}
 
 	newDeleteFollowParams := database.DeleteFeedFollowParams{
@@ -278,24 +222,30 @@ func cmdUnfollow(s *config.State, cmd command, user database.User) error {
 	}
 	err = s.Db.DeleteFeedFollow(context.Background(), newDeleteFollowParams)
 	if err != nil {
-		return fmt.Errorf("you were not following that feed - %w\n", err)
+		return fmt.Errorf("error while removing followed feed from the table - %w\n", err)
 	}
 
 	fmt.Printf("user \"%s\" now does not follow feed \"%s\"\n", user.Name, feed.Name)
 	return nil
 }
 
-func cmdAgg(s *config.State, cmd command) error {
-	if len(cmd.args) != 1 {
-		return fmt.Errorf("Incorrect usage\nTry 'agg <time_between_reqs [1s, 1m, 2h, 3m45s, ...]>'\n")
+func cmdAgg(s *config.State, cmd Command) error {
+	if len(cmd.Args) > 1 {
+		return fmt.Errorf("Incorrect usage\nTry 'agg <time_between_reqs [1s, 1m, 2h, 3m45s, ...(default = 1m)]>'\n")
 	}
 
-	duration, err := time.ParseDuration(cmd.args[0])
-	if err != nil {
-		return fmt.Errorf("incorrect time format\n")
+	var duration time.Duration
+	var err error
+	if len(cmd.Args) == 0 {
+		duration, _ = time.ParseDuration("1m")
+		fmt.Printf("Collecting feeds every 1m\n")
+	} else {
+		duration, err = time.ParseDuration(cmd.Args[0])
+		if err != nil {
+			return fmt.Errorf("incorrect time format\nTry [1s, 1m, 2h, 3m45s, ...(default = 1m)]\n")
+		}
+		fmt.Printf("Collecting feeds every %s\n", cmd.Args[0])
 	}
-
-	fmt.Printf("Collecting feeds every %s\n", cmd.args[0])
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ticker := time.NewTicker(duration)
@@ -323,32 +273,34 @@ func cmdAgg(s *config.State, cmd command) error {
 	}
 }
 
-func cmdBrowse(s *config.State, cmd command, user database.User) error {
-	if len(cmd.args) > 1 {
+func cmdBrowse(s *config.State, cmd Command, user database.User) error {
+	if len(cmd.Args) > 1 {
 		return fmt.Errorf("Incorrect usage\nTry 'browse <limit [default = 2]>'\n")
 	}
 
 
-	newGetPostsParams := database.GetPostsForUserParams{}
-	if len(cmd.args) == 0 {
-		newGetPostsParams = database.GetPostsForUserParams{
-			ID: user.ID,
-			Limit: 2,
-		}
+	var postsLimit int
+	var err error
+	if len(cmd.Args) == 0 {
+		postsLimit = 2
 	} else {
-		postsLimit, err := strconv.Atoi(cmd.args[0])
+		postsLimit, err = strconv.Atoi(cmd.Args[0])
 		if err != nil {
-			return fmt.Errorf("invalid limit format\n")
-		}
-		newGetPostsParams = database.GetPostsForUserParams{
-			ID: user.ID,
-			Limit: int32(postsLimit),
+			return fmt.Errorf("incorrect limit format\nTry [1, 2, 3, ...(default = 2)]\n")
 		}
 	}
 
+	newGetPostsParams := database.GetPostsForUserParams{
+		ID: user.ID,
+		Limit: int32(postsLimit),
+	}
 	posts, err := s.Db.GetPostsForUser(context.Background(), newGetPostsParams)
 	if err != nil {
 		return fmt.Errorf("error while fetching posts from the database - %v\n", err)
+	}
+
+	if len(posts) == 0 {
+		fmt.Printf("There's nothing to browse!\n")
 	}
 
 	for _, post := range posts {
@@ -359,7 +311,7 @@ func cmdBrowse(s *config.State, cmd command, user database.User) error {
 	return nil
 }
 
-func cmdReset(s *config.State, cmd command) error {
+func cmdReset(s *config.State, cmd Command) error {
 	err := s.Db.ResetDb(context.Background())
 	if err != nil {
 		return fmt.Errorf("error while resetting database - %w\n", err)

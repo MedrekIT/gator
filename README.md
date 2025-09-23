@@ -17,7 +17,8 @@ Gator - RSS feed aggregator which allows you to follow to your favorite blogs an
 
 ## Screenshots
 
-![]()
+![Help](./screenshots/gator_help.png)
+![Browse](./screenshots/gator_browse.png)
 
 ---
 
@@ -91,6 +92,10 @@ exit
 cd sql/schema/ # Go to database schema directory
 goose postgres <YOUR_DB_URL> up # Migrate your database to the newest version
 cd ../..
+```
+
+**Install program for global execution**
+```bash
 go install
 ```
 
@@ -103,39 +108,38 @@ go install
 gator <command> [...args]
 ```
 
-"The Backend Podcast":
- * https://anchor.fm/s/f7f18900/podcast/rss
- * Daniel
-"Frontend Masters Blog":
- * https://frontendmasters.com/blog/feed
- * Daniel
-"Backend Banter":
- * https://anchor.fm/s/f39e007c/podcast/rss
- * Daniel
-"TechCrunch":
- * https://techcrunch.com/feed/
- * Daniel
-"Boot.dev Blog":
- * https://blog.boot.dev/index.xml
- * Daniel
+You are able to add some users (which you may treat as profiles/context groups), once you login, you may add any RSS feeds you'd like. Run `gator agg <time_interval>` in unused terminal, then try to browse your posts.
+
+Here are some good blogs for you to start with your RSS adventure:
+- `gator addfeed "Boot.dev Blog" https://blog.boot.dev/index.xml`
+- `gator addfeed "Frontend Masters Blog" https://frontendmasters.com/blog/feed`
+
+**Commands:**
+- `gator help` - Displays all implemented commands
+- `gator register <user_name>` - Allows to register new user account
+- `gator login <user_name>` - Allows registered user to login onto existant account
+- `gator users` - Displays all registered users
+- `gator addfeed <feed_name> <feed_url>` - Allows to save and follow a new RSS feed
+- `gator feeds` - Displays all feeds saved by users
+- `gator follow <feed_url>` - Allows to follow any saved feed
+- `gator unfollow <feed_url>` - Allows to unfollow any followed feed
+- `gator following` - Displays every feed that you follow
+- `gator agg <time_between_reqs [1s, 1m, 2h, 3m45s, ...]>` - Starts the automatic feeds aggregation and fetches new posts whenever given time passes
+- `gator browse <limit [default = 2]>` - Displays number of freshly fetched posts limited by given value
+- `gator reset` - Resets all saved data
 
 ---
 
 ## Contributing
 
-### Clone the repo
+### Install project
 
-```bash
-```
-
-### Install requirements
-
-```bash
-```
+[Installation](#installation)
 
 ### Test if it works
 
 ```bash
+gator help
 ```
 
 ### Submit a pull request
