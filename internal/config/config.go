@@ -8,6 +8,7 @@ import (
 )
 
 const configFile = ".gatorconfig.json"
+const dbUrl = "postgres://postgres:@localhost:5432/gator?sslmode=disable" //postgres://postgres:<HERE_SET_YOUR_PASSWORD>@localhost:5432/gator?sslmode=disable
 
 type State struct {
 	Db *database.Queries
@@ -38,7 +39,16 @@ func Read() (Config, error) {
 
 	confBytes, err := os.ReadFile(confPath)
 	if err != nil {
-		return Config{}, fmt.Errorf("error fetching config file: %w\n", err)
+		confBytes, err = json.Marshal(Config{
+			DbURL: dbUrl,
+		})
+		if err != nil {
+			return Config{}, fmt.Errorf("error while encoding config data: %w\n", err)
+		}
+		err = os.WriteFile(confPath, confBytes, 0666)
+		if err != nil {
+			return Config{}, fmt.Errorf("error while creating non-existant config file: %w\n", err)
+		}
 	}
 
 	var newConf Config

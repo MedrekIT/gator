@@ -19,6 +19,5 @@ WHERE id = $1;
 -- name: GetUsers :many
 SELECT * FROM users;
 
--- name: ResetDb :many
-DELETE FROM users
-RETURNING *;
+-- name: ResetDb :exec
+DELETE FROM users;

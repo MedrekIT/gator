@@ -39,7 +39,10 @@ func ScrapeFeeds(s *config.State) error {
 
 	fmt.Printf("Fetching from \"%s\"\n", feed.Name)
 
-	newMarkFeedParams := database.MarkFeedFetchedParams{feed.ID, time.Now()}
+	newMarkFeedParams := database.MarkFeedFetchedParams{
+		ID: feed.ID,
+		UpdatedAt: time.Now(),
+	}
 	_, err = s.Db.MarkFeedFetched(context.Background(), newMarkFeedParams)
 	if err != nil {
 		return fmt.Errorf("error while marking feed as fetched in the database - %w\n", err)
@@ -59,7 +62,19 @@ func ScrapeFeeds(s *config.State) error {
 			}
 		}
 
-		newPostParams := database.CreatePostParams{uuid.New(), time.Now(), time.Now(), it.Title, it.Link, sql.NullString{it.Description, true}, publishedAt, feed.ID}
+		newPostParams := database.CreatePostParams{
+			ID: uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Title: it.Title,
+			Url: it.Link,
+			Description: sql.NullString{
+				String: it.Description,
+				Valid: true,
+			},
+			PublishedAt: publishedAt,
+			FeedID: feed.ID,
+		}
 		_, err = s.Db.CreatePost(context.Background(), newPostParams)
 		if err != nil {
 			if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"posts_url_key\"") {

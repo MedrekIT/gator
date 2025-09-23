@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"context"
 	"fmt"
 	"os"
@@ -16,7 +17,10 @@ func middlewareLoggedIn(handler func(s *config.State, cmd command, user database
 	return func(s *config.State, cmd command) error {
 		user, err := s.Db.GetUser(context.Background(), s.Conf.CurrentUserName)
 		if err != nil {
-			return fmt.Errorf("user with given name doesn't exist in the database\n")
+			if strings.Contains(err.Error(), "sql: no rows in result set") {
+				return fmt.Errorf("user with given name doesn't exist in the database\n")
+			}
+			return fmt.Errorf("error while getting user from the database - %w\n", err)
 		}
 
 		return handler(s, cmd, user)
@@ -36,24 +40,16 @@ func main() {
 		log.Fatalf("\nUsage: cli <command> [args...]")
 	}
 
-	s := config.State{dbQueries, &conf}
-	cmds := commands{make(map[string]func(s *config.State, cmd command) error)}
-	cmds.register("register", cmdRegister)
-	cmds.register("login", cmdLogin)
-	cmds.register("users", cmdUsers)
-	cmds.register("addfeed", middlewareLoggedIn(cmdAddFeed))
-	cmds.register("feeds", cmdFeeds)
-	cmds.register("follow", middlewareLoggedIn(cmdFollow))
-	cmds.register("following", middlewareLoggedIn(cmdFollowing))
-	cmds.register("unfollow", middlewareLoggedIn(cmdUnfollow))
-	cmds.register("agg", cmdAgg)
-	cmds.register("browse", middlewareLoggedIn(cmdBrowse))
-	cmds.register("reset", cmdReset)
+	s := config.State{
+		Db: dbQueries,
+		Conf: &conf,
+	}
+	cmds := getCommands()
 
 	cmd := command{os.Args[1], os.Args[2:]}
 
-	err = cmds.run(&s, cmd)
+	err = cmds[os.Args[1]].run(&s, cmd)
 	if err != nil {
-		log.Fatalf("\nError - %v", err)
+		log.Fatalf("\nError: %v", err)
 	}
 }
