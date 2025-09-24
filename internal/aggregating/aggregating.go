@@ -64,7 +64,7 @@ func ScrapeFeeds(s *config.State) error {
 		}
 
 		newPostParams := database.CreatePostParams{
-			ID: uuid.New(),
+			ID: uuid.New().String(),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 			Title: it.Title,
@@ -78,7 +78,7 @@ func ScrapeFeeds(s *config.State) error {
 		}
 		_, err = s.Db.CreatePost(context.Background(), newPostParams)
 		if err != nil {
-			if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"posts_url_key\"") {
+			if strings.Contains(err.Error(), "UNIQUE constraint failed: posts.url") {
 				continue
 			}
 			return fmt.Errorf("error while aggregating feed posts - %w\n", err)

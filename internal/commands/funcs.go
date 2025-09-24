@@ -7,6 +7,7 @@ import (
 	"time"
 	"log"
 	"fmt"
+	"database/sql"
 	"github.com/google/uuid"
 	"github.com/MedrekIT/gator/internal/config"
 	"github.com/MedrekIT/gator/internal/aggregating"
@@ -14,7 +15,7 @@ import (
 )
 
 func cmdHelp(s *config.State, cmd Command) error {
-	fmt.Printf("Welcome to the Gator - your command line RSS feed aggregator!\n\nUsage:\n")
+	fmt.Printf("Welcome to the Gator - your command line RSS feed aggregator!\nUsage: gator <command> [options]\n\nCommands:\n")
 	for _, cmnd := range GetCommands() {
 		fmt.Printf("'%s' - %s\n", cmnd.name, cmnd.description)
 	}
@@ -39,7 +40,7 @@ func cmdLogin(s *config.State, cmd Command) error {
 		return err
 	}
 
-	fmt.Printf("User has been set to \"%s\"\n", user.Name)
+	fmt.Printf("User has been set to \"%s\"!\n", user.Name)
 	return nil
 }
 
@@ -49,14 +50,14 @@ func cmdRegister(s *config.State, cmd Command) error {
 	}
 
 	newUserParams := database.CreateUserParams{
-		ID: uuid.New(),
+		ID: uuid.New().String(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Name: cmd.Args[0],
 	}
 	user, err := s.Db.CreateUser(context.Background(), newUserParams)
 	if err != nil {
-		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"users_name_key\"") {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.name") {
 			return fmt.Errorf("user with given name already exists in the database\n")
 		}
 		return fmt.Errorf("error while creating new user - %w\n", err)
@@ -67,14 +68,14 @@ func cmdRegister(s *config.State, cmd Command) error {
 		return err
 	}
 
-	fmt.Printf("New user named \"%s\" has been created\n", user.Name)
+	fmt.Printf("New user named \"%s\" has been created!\n", user.Name)
 	return nil
 }
 
 func cmdUsers(s *config.State, cmd Command) error {
 	users, err := s.Db.GetUsers(context.Background())
 	if err != nil {
-		return fmt.Errorf("error while getting users from the database\n")
+		return fmt.Errorf("error while getting users from the database - %w\n", err)
 	}
 
 	if len(users) == 0 {
@@ -96,7 +97,7 @@ func cmdAddFeed(s *config.State, cmd Command, user database.User) error {
 	}
 
 	newFeedParams := database.CreateFeedParams{
-		ID: uuid.New(),
+		ID: uuid.New().String(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Name: cmd.Args[0],
@@ -105,14 +106,14 @@ func cmdAddFeed(s *config.State, cmd Command, user database.User) error {
 	}
 	feed, err := s.Db.CreateFeed(context.Background(), newFeedParams)
 	if err != nil {
-		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"feeds_url_key\"") {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: feeds.url") {
 			return fmt.Errorf("feed with given URL already exists in the database\n")
 		}
 		return fmt.Errorf("error while creating new feed - %w\n", err)
 	}
 
 	newFeedFollowParams := database.CreateFeedFollowParams{
-		ID: uuid.New(),
+		ID: uuid.New().String(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		UserID: user.ID,
@@ -120,13 +121,13 @@ func cmdAddFeed(s *config.State, cmd Command, user database.User) error {
 	}
 	feedFollow, err := s.Db.CreateFeedFollow(context.Background(), newFeedFollowParams)
 	if err != nil {
-		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"feeds_url\"") {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: feed_follows.user_id, feed_follows.feed_id") {
 			return fmt.Errorf("you already follow feed with given URL\n")
 		}
 		return fmt.Errorf("error while adding follow to the database - %w\n", err)
 	}
 
-	fmt.Printf("user \"%s\" now follows feed \"%s\"\n", feedFollow.UserName, feedFollow.FeedName)
+	fmt.Printf("User \"%s\" now follows feed \"%s\"!\n", feedFollow.UserName, feedFollow.FeedName)
 	return nil
 }
 
@@ -169,7 +170,7 @@ func cmdFollow(s *config.State, cmd Command, user database.User) error {
 	}
 
 	newFeedFollowParams := database.CreateFeedFollowParams{
-		ID: uuid.New(),
+		ID: uuid.New().String(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		UserID: user.ID,
@@ -177,13 +178,13 @@ func cmdFollow(s *config.State, cmd Command, user database.User) error {
 	}
 	feedFollow, err := s.Db.CreateFeedFollow(context.Background(), newFeedFollowParams)
 	if err != nil {
-		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint \"feed_follows_user_id_feed_id_key\"") {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: feed_follows.user_id, feed_follows.feed_id") {
 			return fmt.Errorf("you already follow feed with given URL\n")
 		}
 		return fmt.Errorf("error while adding follow to the feed in the database - %w\n", err)
 	}
 
-	fmt.Printf("user \"%s\" now follows feed \"%s\"\n", feedFollow.UserName, feedFollow.FeedName)
+	fmt.Printf("User \"%s\" now follows feed \"%s\"!\n", feedFollow.UserName, feedFollow.FeedName)
 	return nil
 }
 
@@ -225,7 +226,7 @@ func cmdUnfollow(s *config.State, cmd Command, user database.User) error {
 		return fmt.Errorf("error while removing followed feed from the table - %w\n", err)
 	}
 
-	fmt.Printf("user \"%s\" now does not follow feed \"%s\"\n", user.Name, feed.Name)
+	fmt.Printf("User \"%s\" now does not follow feed \"%s\"!\n", user.Name, feed.Name)
 	return nil
 }
 
@@ -238,13 +239,13 @@ func cmdAgg(s *config.State, cmd Command) error {
 	var err error
 	if len(cmd.Args) == 0 {
 		duration, _ = time.ParseDuration("1m")
-		fmt.Printf("Collecting feeds every 1m\n")
+		fmt.Printf("Collecting feeds every 1m!\n")
 	} else {
 		duration, err = time.ParseDuration(cmd.Args[0])
 		if err != nil {
 			return fmt.Errorf("incorrect time format\nTry [1s, 1m, 2h, 3m45s, ...(default = 1m)]\n")
 		}
-		fmt.Printf("Collecting feeds every %s\n", cmd.Args[0])
+		fmt.Printf("Collecting feeds every %s!\n", cmd.Args[0])
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -274,25 +275,29 @@ func cmdAgg(s *config.State, cmd Command) error {
 }
 
 func cmdBrowse(s *config.State, cmd Command, user database.User) error {
-	if len(cmd.Args) > 1 {
-		return fmt.Errorf("Incorrect usage\nTry 'browse <limit [default = 2]>'\n")
+	if len(cmd.Args) > 2 {
+		return fmt.Errorf("Incorrect usage\nTry 'browse <limit [default = 2]> <(optional) search_query>'\n")
 	}
 
-
-	var postsLimit int
-	var err error
-	if len(cmd.Args) == 0 {
-		postsLimit = 2
-	} else {
-		postsLimit, err = strconv.Atoi(cmd.Args[0])
-		if err != nil {
-			return fmt.Errorf("incorrect limit format\nTry [1, 2, 3, ...(default = 2)]\n")
+	postsLimit := 2
+	var feedName string
+	if len(cmd.Args) != 0 {
+		for _, arg := range cmd.Args {
+			if n, err := strconv.Atoi(arg); err != nil {
+				feedName = arg
+			} else {
+				postsLimit = n
+			}
 		}
 	}
 
 	newGetPostsParams := database.GetPostsForUserParams{
 		ID: user.ID,
-		Limit: int32(postsLimit),
+		Limit: int64(postsLimit),
+		FeedQuery: sql.NullString{
+			String: feedName,
+			Valid: true,
+		},
 	}
 	posts, err := s.Db.GetPostsForUser(context.Background(), newGetPostsParams)
 	if err != nil {
@@ -300,7 +305,7 @@ func cmdBrowse(s *config.State, cmd Command, user database.User) error {
 	}
 
 	if len(posts) == 0 {
-		fmt.Printf("There's nothing to browse!\n")
+		fmt.Printf("There is nothing to browse!\n")
 	}
 
 	for _, post := range posts {
@@ -317,6 +322,6 @@ func cmdReset(s *config.State, cmd Command) error {
 		return fmt.Errorf("error while resetting database - %w\n", err)
 	}
 
-	fmt.Printf("Database has been reset\n")
+	fmt.Printf("Database has been reset!\n")
 	return nil
 }

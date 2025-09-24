@@ -21,5 +21,3 @@ func middlewareLoggedIn(handler func(s *config.State, cmd Command, user database
 		return handler(s, cmd, user)
 	}
 }
-
-

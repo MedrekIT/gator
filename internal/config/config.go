@@ -7,8 +7,10 @@ import (
 	"github.com/MedrekIT/gator/internal/database"
 )
 
+const configPath = "/.local/share/gator"
 const configFile = ".gatorconfig.json"
-const dbUrl = "postgres://postgres:@localhost:5432/gator?sslmode=disable" //postgres://postgres:<HERE_SET_YOUR_PASSWORD>@localhost:5432/gator?sslmode=disable
+const dbPath = "/.local/share/gator/db/"
+const dbFile = "gator.db"
 
 type State struct {
 	Db *database.Queries
@@ -16,7 +18,7 @@ type State struct {
 }
 
 type Config struct {
-	DbURL string `json:"db_url"`
+	DbPath string `json:"db_path"`
 	CurrentUserName string `json:"current_user_name"`
 }
 
@@ -31,6 +33,21 @@ func (c *Config) SetUser(userName string) error {
 	return nil
 }
 
+func (c *Config) EnsureDBPath() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error while getting HOME_DIR location - %w\n", err)
+	}
+
+	dir := homeDir + dbPath
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("error while creating database path - %w\n", err)
+	}
+
+	c.DbPath = dir + dbFile
+	return nil
+}
+
 func Read() (Config, error) {
 	confPath, err := getConfigPath()
 	if err != nil {
@@ -39,9 +56,14 @@ func Read() (Config, error) {
 
 	confBytes, err := os.ReadFile(confPath)
 	if err != nil {
-		confBytes, err = json.Marshal(Config{
-			DbURL: dbUrl,
-		})
+		conf := Config{
+			DbPath: dbPath,
+		}
+		err = conf.EnsureDBPath()
+		if err != nil {
+			return Config{}, err
+		}
+		confBytes, err = json.Marshal(conf)
 		if err != nil {
 			return Config{}, fmt.Errorf("error while encoding config data - %w\n", err)
 		}
@@ -53,7 +75,7 @@ func Read() (Config, error) {
 
 	var newConf Config
 	if err := json.Unmarshal(confBytes, &newConf); err != nil {
-		return Config{}, fmt.Errorf("error decoding data from config file - %w\n", err)
+		return Config{}, fmt.Errorf("error while decoding data from config file - %w\n", err)
 	}
 
 	return newConf, nil
@@ -67,12 +89,12 @@ func write(conf *Config) error {
 
 	confBytes, err := json.Marshal(conf)
 	if err != nil {
-		return fmt.Errorf("error encoding config data - %w\n", err)
+		return fmt.Errorf("error while encoding config data - %w\n", err)
 	}
 
 	err = os.WriteFile(confPath, confBytes, 0666)
 	if err != nil {
-		return fmt.Errorf("error saving data to file - %w\n", err)
+		return fmt.Errorf("error while saving data to file - %w\n", err)
 	}
 
 	return nil
@@ -81,8 +103,13 @@ func write(conf *Config) error {
 func getConfigPath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("error getting HOME_DIR location - %w\n", err)
+		return "", fmt.Errorf("error while getting HOME_DIR location - %w\n", err)
 	}
 
-	return fmt.Sprintf("%s/%s", homeDir, configFile), nil
+	dir := homeDir + configPath
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("error while creating config path - %w\n", err)
+	}
+
+	return fmt.Sprintf("%s/%s", dir, configFile), nil
 }

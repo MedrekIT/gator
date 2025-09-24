@@ -47,9 +47,9 @@ func GetCommands() map[string]commands {
 			callback: cmdAgg,
 			description: "Starts the automatic feeds aggregation and fetches new posts whenever given time passes",
 		}, "browse": {
-			name: "browse <limit [default = 2]>",
+			name: "browse <limit [default = 2]> <(optional) search_query>",
 			callback: middlewareLoggedIn(cmdBrowse),
-			description: "Displays number of freshly fetched posts limited by given value",
+			description: "Displays number of freshly fetched posts for current user, limited by given value, may be filtered by specified feed name's part",
 		}, "reset": {
 			name: "reset",
 			callback: cmdReset,

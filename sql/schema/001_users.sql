@@ -1,8 +1,10 @@
 -- +goose Up
+PRAGMA foreign_keys = ON;
+
 CREATE TABLE users(
-	id UUID PRIMARY KEY,
-	created_at TIMESTAMP NOT NULL,
-	updated_at TIMESTAMP NOT NULL,
+	id TEXT PRIMARY KEY,
+	created_at DATETIME NOT NULL,
+	updated_at DATETIME NOT NULL,
 	name TEXT UNIQUE NOT NULL
 );
 

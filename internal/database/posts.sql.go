@@ -9,34 +9,32 @@ import (
 	"context"
 	"database/sql"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 const createPost = `-- name: CreatePost :one
 INSERT INTO posts (id, created_at, updated_at, title, url, description, published_at, feed_id)
 VALUES (
-	$1,
-	$2,
-	$3,
-	$4,
-	$5,
-	$6,
-	$7,
-	$8
-)
+	?1,
+	?2,
+	?3,
+	?4,
+	?5,
+	?6,
+	?7,
+	?8
+	)
 RETURNING id, created_at, updated_at, title, url, description, published_at, feed_id
 `
 
 type CreatePostParams struct {
-	ID          uuid.UUID
+	ID          string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Title       string
 	Url         string
 	Description sql.NullString
 	PublishedAt sql.NullTime
-	FeedID      uuid.UUID
+	FeedID      string
 }
 
 func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, error) {
@@ -65,43 +63,43 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 }
 
 const getPostsForUser = `-- name: GetPostsForUser :many
-SELECT posts.id, posts.created_at, posts.updated_at, title, url, description, published_at, posts.feed_id, feed_follows.id, feed_follows.created_at, feed_follows.updated_at, user_id, feed_follows.feed_id, users.id, users.created_at, users.updated_at, name FROM posts
+SELECT posts.id, posts.created_at, posts.updated_at, posts.title, posts.url, posts.description, posts.published_at, posts.feed_id,
+	users.name AS user_name,
+	feeds.name AS feed_name
+FROM posts
 INNER JOIN feed_follows
 ON posts.feed_id = feed_follows.feed_id
 INNER JOIN users
 ON feed_follows.user_id = users.id
-WHERE users.id = $1
+INNER JOIN feeds
+ON feeds.id = feed_follows.feed_id
+WHERE users.id = ?1
+AND feeds.name LIKE '%' || ?3 || '%'
 ORDER BY published_at DESC
-LIMIT $2
+LIMIT ?2
 `
 
 type GetPostsForUserParams struct {
-	ID    uuid.UUID
-	Limit int32
+	ID        string
+	Limit     int64
+	FeedQuery sql.NullString
 }
 
 type GetPostsForUserRow struct {
-	ID          uuid.UUID
+	ID          string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Title       string
 	Url         string
 	Description sql.NullString
 	PublishedAt sql.NullTime
-	FeedID      uuid.UUID
-	ID_2        uuid.UUID
-	CreatedAt_2 time.Time
-	UpdatedAt_2 time.Time
-	UserID      uuid.UUID
-	FeedID_2    uuid.UUID
-	ID_3        uuid.UUID
-	CreatedAt_3 time.Time
-	UpdatedAt_3 time.Time
-	Name        string
+	FeedID      string
+	UserName    string
+	FeedName    string
 }
 
 func (q *Queries) GetPostsForUser(ctx context.Context, arg GetPostsForUserParams) ([]GetPostsForUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPostsForUser, arg.ID, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, getPostsForUser, arg.ID, arg.Limit, arg.FeedQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -118,15 +116,8 @@ func (q *Queries) GetPostsForUser(ctx context.Context, arg GetPostsForUserParams
 			&i.Description,
 			&i.PublishedAt,
 			&i.FeedID,
-			&i.ID_2,
-			&i.CreatedAt_2,
-			&i.UpdatedAt_2,
-			&i.UserID,
-			&i.FeedID_2,
-			&i.ID_3,
-			&i.CreatedAt_3,
-			&i.UpdatedAt_3,
-			&i.Name,
+			&i.UserName,
+			&i.FeedName,
 		); err != nil {
 			return nil, err
 		}

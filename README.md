@@ -17,7 +17,6 @@ Gator - RSS feed aggregator which allows you to follow to your favorite blogs an
 
 ## Screenshots
 
-![Help](./screenshots/gator_help.png)
 ![Browse](./screenshots/gator_browse.png)
 
 ---
@@ -35,68 +34,16 @@ You can prevent it by simply using an RSS aggregator, where YOU decide what is w
 > [!NOTE]
 > **Requirements:**
 > - `go>=1.25.1`
-> - `goose>=3.25.0`
-> - `psql>=16.10`
-> - `github.com/google/uuid>=1.6.0`
-> - `github.com/lib/pq>=1.10.9`
+>
+> A config file called `.gatorconfig.json` as well as `db/.gator.db` are created in `HOME_DIR/.local/share/gator/` directory with preconfigured database path.
 
-> [!IMPORTANT]
-> A config file called `.gatorconfig.json` is created in your `HOME_DIR` with preconfigured database URL. I hope it should be fine, but in case of problems or **if you change postgres password** you can change it in `gator/internal/config/config.go`, where it's named `dbUrl`.
-> dbURL - `postgres://postgres:<HERE_SET_YOUR_PASSWORD>@localhost:5432/gator?sslmode=disable`
 ---
 
 ## Installation
 
 ```bash
 curl -sS https://webi.sh/golang | sh # Install Go
-git clone https://github.com/MedrekIT/gator.git # Clone repository
-cd gator # Move to repository directory
-go get github.com/google/uuid # Install 'google/uuid' package
-go get github.com/lib/pq # Install 'lib/pq' package
-go install github.com/pressly/goose/v3/cmd/goose@latest # Install goose
-```
-**Install psql**
-
-macOS:
-```bash
-brew install postgresql@15
-```
-Linux (Debian/Ubuntu):
-```bash
-sudo apt update # Update dependencies
-sudo apt install postgresql postgresql-contrib
-sudo passwd postgres # Set postgres password (make sure you remember it and **provide into database URL**)
-```
-**Start the Postgres server and enter the psql shell**
-
-macOS:
-```bash
-brew services start postgresql@15
-psql postgres
-```
-Linux (Debian/Ubuntu):
-```bash
-sudo service postgresql start
-sudo -u postgres psql
-```
-**Configure your database**
-
-```SQL
-CREATE DATABASE gator;
-\c gator -- Connect to the new database
-ALTER USER postgres PASSWORD 'postgres'; -- (Linux only) set the user password
-exit
-```
-
-```bash
-cd sql/schema/ # Go to database schema directory
-goose postgres <YOUR_DB_URL> up # Migrate your database to the newest version
-cd ../..
-```
-
-**Install program for global execution**
-```bash
-go install
+go install github.com/MedrekIT/gator # Install repository as program for global execution
 ```
 
 ---
@@ -125,7 +72,7 @@ Here are some good blogs for you to start with your RSS adventure:
 - `gator unfollow <feed_url>` - Allows to unfollow any followed feed
 - `gator following` - Displays every feed that you follow
 - `gator agg <time_between_reqs [1s, 1m, 2h, 3m45s, ...]>` - Starts the automatic feeds aggregation and fetches new posts whenever given time passes
-- `gator browse <limit [default = 2]>` - Displays number of freshly fetched posts limited by given value
+- `gator browse <limit [default = 2]> <feed_query>` - Displays number of freshly fetched posts for current user, limited by given value, may be filtered by specified feed name's part
 - `gator reset` - Resets all saved data
 
 ---
@@ -134,14 +81,17 @@ Here are some good blogs for you to start with your RSS adventure:
 
 ### Install project
 
-[Installation](#installation)
+```bash
+git clone https://github.com/MedrekIT/gator.git # Clone repository
+cd gator # Move to repository directory
+```
 
 ### Test if it works
 
 ```bash
-gator help
+go run . help
 ```
 
-### Submit a pull request
+### Add you changes and submit a pull request
 
 If you'd like to contribute, please fork the repository and open a pull request to the `main` branch.

@@ -1,13 +1,13 @@
 -- +goose Up
 CREATE TABLE posts(
-	id UUID PRIMARY KEY,
-	created_at TIMESTAMP NOT NULL,
-	updated_at TIMESTAMP NOT NULL,
+	id TEXT PRIMARY KEY,
+	created_at DATETIME NOT NULL,
+	updated_at DATETIME NOT NULL,
 	title TEXT NOT NULL,
 	url TEXT UNIQUE NOT NULL,
 	description TEXT,
-	published_at TIMESTAMP,
-	feed_id UUID NOT NULL,
+	published_at DATETIME,
+	feed_id TEXT NOT NULL,
 	CONSTRAINT fk_feeds
 	FOREIGN KEY (feed_id)
 	REFERENCES feeds(id)
