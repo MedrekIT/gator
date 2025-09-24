@@ -43,7 +43,7 @@ You can prevent it by simply using an RSS aggregator, where YOU decide what is w
 
 ```bash
 curl -sS https://webi.sh/golang | sh # Install Go
-go install github.com/MedrekIT/gator # Install repository as program for global execution
+go install github.com/MedrekIT/gator@latest # Install repository as program for global execution
 ```
 
 ---
