@@ -31,8 +31,8 @@ type RSSItem struct {
 	PubDate     string `xml:"pubDate"`
 }
 
-func ScrapeFeeds(s *config.State) error {
-	feed, err := s.Db.GetNextFeedToFetch(context.Background())
+func ScrapeFeeds(ctx context.Context, s *config.State) error {
+	feed, err := s.Db.GetNextFeedToFetch(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "sql: no rows in result set") {
 			return fmt.Errorf("nothing to browse, database is empty!\n")
@@ -44,12 +44,12 @@ func ScrapeFeeds(s *config.State) error {
 		ID: feed.ID,
 		UpdatedAt: time.Now(),
 	}
-	_, err = s.Db.MarkFeedFetched(context.Background(), newMarkFeedParams)
+	_, err = s.Db.MarkFeedFetched(ctx, newMarkFeedParams)
 	if err != nil {
 		return fmt.Errorf("error while marking feed as fetched in the database - %w\n", err)
 	}
 
-	fetchedFeed, err := fetchFeed(context.Background(), feed.Url)
+	fetchedFeed, err := fetchFeed(ctx, feed.Url)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func ScrapeFeeds(s *config.State) error {
 			PublishedAt: publishedAt,
 			FeedID: feed.ID,
 		}
-		_, err = s.Db.CreatePost(context.Background(), newPostParams)
+		_, err = s.Db.CreatePost(ctx, newPostParams)
 		if err != nil {
 			if strings.Contains(err.Error(), "UNIQUE constraint failed: posts.url") {
 				continue

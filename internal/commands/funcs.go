@@ -4,6 +4,9 @@ import (
 	"strings"
 	"strconv"
 	"context"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 	"log"
 	"fmt"
@@ -249,24 +252,31 @@ func cmdAgg(s *config.State, cmd Command) error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	ticker := time.NewTicker(duration)
 	defer cancel()
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		cancel()
+	}()
+
+	ticker := time.NewTicker(duration)
 	defer ticker.Stop()
 	failures := 0
-	for ;; <-ticker.C {
+	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Aggregating finished!\n")
+			log.Printf("\nAggregating finished!\n")
 			return nil
 		case <-ticker.C:
-			err := aggregating.ScrapeFeeds(s)
+			err := aggregating.ScrapeFeeds(ctx, s)
 			if err != nil {
 				failures++
 				if failures >= 3 {
-					log.Printf("error while scraping feeds data - %v\n", err)
+					log.Printf("\nerror while scraping feeds data - %v\n", err)
 					return fmt.Errorf("Too many consecutive errors, exiting...\n")
 				}
-				log.Printf("error while scraping feeds data - %v\nTrying again...\n", err)
+				log.Printf("\nerror while scraping feeds data - %vTrying again...\n\n", err)
 				continue
 			}
 			failures = 0
